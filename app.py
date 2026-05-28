@@ -1,14 +1,33 @@
 from flask import Flask, jsonify, render_template
-from flask_mysqldb import MySQL
+import sqlite3
+import csv
+import os
 
 app = Flask(__name__)
 
-app.config['MYSQL_HOST'] = 'localhost'
-app.config['MYSQL_USER'] = 'root'
-app.config['MYSQL_PASSWORD'] = ''
-app.config['MYSQL_DB'] = 'ecg_health'
+DB_PATH = 'ecg_health.db'
 
-mysql = MySQL(app)
+def init_db():
+    if not os.path.exists(DB_PATH):
+        conn = sqlite3.connect(DB_PATH)
+        cur = conn.cursor()
+        cur.execute('''CREATE TABLE patients (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            age TEXT, sex TEXT, cp TEXT, trestbps TEXT,
+            chol TEXT, fbs TEXT, restecg TEXT, thalch TEXT,
+            exang TEXT, oldpeak TEXT, num TEXT
+        )''')
+        with open('cleanned.csv', 'r') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                cur.execute('INSERT INTO patients VALUES (NULL,?,?,?,?,?,?,?,?,?,?,?)',
+                    (row['age'], row['sex'], row['cp'], row['trestbps'],
+                     row['chol'], row['fbs'], row['restecg'], row['thalch'],
+                     row['exang'], row['oldpeak'], row['num']))
+        conn.commit()
+        conn.close()
+
+init_db()
 
 @app.route('/')
 def index():
@@ -16,25 +35,18 @@ def index():
 
 @app.route('/api/patients')
 def get_patients():
-    cur = mysql.connection.cursor()
-    cur.execute("SELECT * FROM cleanned")
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM patients")
     rows = cur.fetchall()
-    cur.close()
+    conn.close()
     patients = []
-    for i, row in enumerate(rows):
+    for row in rows:
         patients.append({
-            'id': i+1,
-            'age': row[0],
-            'sex': row[1],
-            'cp': row[2],
-            'trestbps': row[3],
-            'chol': row[4],
-            'fbs': row[5],
-            'restecg': row[6],
-            'thalch': row[7],
-            'exang': row[8],
-            'oldpeak': row[9],
-            'num': row[10]
+            'id': row[0], 'age': row[1], 'sex': row[2],
+            'cp': row[3], 'trestbps': row[4], 'chol': row[5],
+            'fbs': row[6], 'restecg': row[7], 'thalch': row[8],
+            'exang': row[9], 'oldpeak': row[10], 'num': row[11]
         })
     return jsonify(patients)
 
